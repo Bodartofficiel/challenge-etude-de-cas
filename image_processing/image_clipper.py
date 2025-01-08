@@ -1,3 +1,5 @@
+"""Run this file alone to generate the test and train images with removed background"""
+
 import pathlib
 
 import numpy as np
@@ -94,8 +96,9 @@ if __name__ == "__main__":
     # Utilisation
     file_path = pathlib.Path(__file__).resolve()
     main_dir = file_path.parent.parent
-    image_dir_path = main_dir / "data/test_image_headmind/"
-    image_dir = list(image_dir_path.glob("*.jpg"))
+    dir = "test_image_headmind"
+    image_dir_path = main_dir / "data" / dir
+    image_dir = list(image_dir_path.glob("*"))
 
     # image_path = "data/test_image_headmind/IMG_6934.jpg"
     # crop_with_mask_and_resize(image_path).show()
@@ -105,4 +108,29 @@ if __name__ == "__main__":
         cropped_image = crop_with_mask_and_resize(image_path)
 
         # Afficher ou sauvegarder le résultat
-        cropped_image.show(title=image_path.split("/")[-1])  # Affiche l'image recadrée
+        output_dir = main_dir / "data-cropped" / dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / img_path.name
+        cropped_image.save(output_path)
+        # cropped_image.show(title=image_path.split("/")[-1])  # Affiche l'image recadrée
+
+    # Utilisation
+    file_path = pathlib.Path(__file__).resolve()
+    main_dir = file_path.parent.parent
+    dir = "DAM"
+    image_dir_path = main_dir / "data" / dir
+    image_dir = list(image_dir_path.glob("*"))
+
+    # image_path = "data/test_image_headmind/IMG_6934.jpg"
+    # crop_with_mask_and_resize(image_path).show()
+
+    for img_path in reversed(image_dir):
+        image_path = str(img_path)
+        cropped_image = crop_with_mask_and_resize(image_path)
+
+        # Afficher ou sauvegarder le résultat
+        output_dir = main_dir / "data-cropped" / dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / img_path.name
+        cropped_image.save(output_path)
+        # cropped_image.show(title=image_path.split("/")[-1])  # Affiche l'image recadrée
