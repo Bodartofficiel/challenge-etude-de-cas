@@ -99,6 +99,10 @@ def train_model(model, loader_train, data_val, optimizer, criterion, device, n_e
             loss.backward()
             optimizer.step()
 
+def save_model(model, path):
+    torch.save(model.state_dict(), path)
+
+
 def main():
     # Préparation des données
     loader_train, dataset_val, dataset_test = prepare_data()
@@ -125,6 +129,9 @@ def main():
     
     # Entraînement
     train_model(my_net, loader_train, dataset_val, optimizer, criterion, device, n_epochs=1)
+    
+    # Save the model
+    save_model(my_net, 'resnet18_finetuned.pth')
     
     # Évaluation finale
     my_net.eval()
