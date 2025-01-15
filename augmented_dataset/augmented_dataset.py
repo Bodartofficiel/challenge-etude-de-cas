@@ -17,6 +17,17 @@ torch.manual_seed(seed)
 
 
 class CustomDataset(datasets.GeneratorBasedBuilder):
+    def __init__(self, *args, num_augments, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_augments = num_augments
+        self.labels = {
+            "W Accessories": 0,
+            "W Bags": 1,
+            "W SLG": 2,
+            "W Shoes": 3,
+            "Watches": 4,
+        }
+
     def _info(self):
         return datasets.DatasetInfo(
             description="Data augmented and cropped images of the dataset",
@@ -45,18 +56,14 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
         ]
 
     def _generate_examples(self, filepath: pathlib.Path, split):
-        labels_to_dict = {
-            str(label).split("/")[-1]: i for i, label in enumerate(filepath.glob("*"))
-        }
         if split == "train":
-            augment_func = process_and_augment
+            augment_func = lambda x, y: process_and_augment(x, y, self.num_augments)
         elif split == "test":
             augment_func = lambda x, y: [x]
         else:
             raise ValueError(f"Unknown name for split: {split}")
-
         i = 0
-        for label, label_idx in labels_to_dict.items():
+        for label, label_idx in self.labels.items():
             for image_file in (filepath / label).glob("*"):
                 image_pil = PIL.Image.open(image_file)
                 image_np_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_BGR2RGB)
