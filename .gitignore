@@ -1,6 +1,20 @@
-*data*
-*venv*
+# vens
+venv
+.venv
+venv
+# data
+data
+data-cropped
+cropped-dataset
+# Python things
 __pycache__
 *.pyc
 *.pyo
 .DS_Store
+# Models
+*checkpoint*
+*.json
+*.safetensors
+*.pt
+*.pth
+*.bin
