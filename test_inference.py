@@ -4,6 +4,8 @@ from PIL import Image
 import os
 from datasets import load_dataset
 
+from collections import Counter
+
 from transformers import (
     Trainer,
     TrainingArguments,
@@ -19,15 +21,14 @@ device = torch.device(
     else "mps" if torch.backends.mps.is_available() else "cpu")
 
 # Load the test dataset
-def load_test_set(dataset_path):
+def load_dataset_train_test(dataset_path):
     dataset = load_dataset(
         str(dataset_path),
         name="full_augmented_dataset_with_0_augment",
         num_augments=0,
         trust_remote_code=True,
     )
-    test_dataset = dataset["test"]
-    return test_dataset
+    return dataset
 
 # Load the general model
 def load_general_model(model_path):
@@ -36,11 +37,38 @@ def load_general_model(model_path):
     # model.eval()
     return model, processor
 
+# Functions to get all the paths for 
+def get_expert_model_paths(expert_model_dir):
+    expert_model_paths = {}
+    for chkpt in os.listdir(expert_model_dir):
+        if chkpt.endswith(".pth"):
+            chkpt_path = os.path.join(expert_model_dir, chkpt)
+            class_idx = chkpt.split('_')[2]
+            expert_model_paths[class_idx] = chkpt_path
+    return expert_model_paths
+
 # TODO Load the expert models
-def load_expert_models(expert_model_paths):
+def load_expert_models(expert_model_paths, nb_ref_per_class):
+    
     expert_models = {}
-    for i,path in enumerate(expert_model_paths):
-        expert_models[i] = ViTForImageClassification.from_pretrained(path).to(device).eval()
+    for i in range(len(expert_model_paths)):
+        
+        path = expert_model_paths[i]
+        
+        model = ViTForImageClassification.from_pretrained(
+            'google/vit-base-patch16-224-in21k',
+            num_labels=nb_ref_per_class[i]
+        )
+
+        # Wight paths
+        pth_weights_path = path
+
+        state_dict = torch.load(pth_weights_path)
+
+        model.load_state_dict(state_dict, strict=False).to(device).eval()
+
+        expert_models[i] = model
+        
     return expert_models
 
 # Predict the classes
@@ -63,7 +91,6 @@ def predict_general_model(model: ViTForImageClassification, processor, test_data
 # Predict the articles
 def get_final_predictions(expert_models, class_predictions, test_dataset):
     
-    # Predict with the expert models
     final_predictions = []
     
     for idx, class_pred in enumerate(class_predictions):
@@ -78,13 +105,20 @@ def get_final_predictions(expert_models, class_predictions, test_dataset):
         
         # Predict the reference using the expert model
         reference_prediction = predict_expert_model(
-            model=expert_model, image = image
+            model=expert_model, image = image,
         )
+        
+        # For the basic classes
+        true_class = test_dataset[idx]['path'].split('/')[2]
+        true_reference = test_dataset[idx]['path'].split('/')[-1].split('.')[0]
+        
         
         # TODO add the true class and true reference
         final_predictions.append({
             'image_idx': idx,
+            'true_class': true_class,
             'predicted_class': predicted_class,
+            'true_reference' : true_reference,
             'predicted_reference': reference_prediction
         })
         
@@ -93,16 +127,9 @@ def get_final_predictions(expert_models, class_predictions, test_dataset):
 
 # Predict the article's reference
 def predict_expert_model(model, image):
+    
     pass
 
-
-# Functions to get all the paths for 
-def get_expert_model_paths(expert_model_dir):
-    expert_model_paths = []
-    for chkpt in os.listdir(expert_model_dir):
-        chkpt_path = os.path.join(expert_model_dir, chkpt)
-        expert_model_paths.append(chkpt_path)
-    return expert_model_paths
 
 # Functions to compute the score and store graphs 
 def compute_results():
@@ -111,8 +138,18 @@ def compute_results():
 
 def main(dataset_path, general_model_path, expert_model_dir):
     
+    labels = {
+            "W Accessories": 0,
+            "W Bags": 1,
+            "W SLG": 2,
+            "W Shoes": 3,
+            "Watches": 4,
+        }
+    
     # Load Test Dataset
-    test_dataset = load_test_set(dataset_path)
+    dataset = load_dataset_train_test(dataset_path)
+    test_dataset = dataset["test"]
+    nb_ref_per_class = Counter(dataset['train']['label'])
     
     # Load the general model
     general_model, processor = load_general_model(general_model_path)
@@ -124,16 +161,17 @@ def main(dataset_path, general_model_path, expert_model_dir):
     
     # Load the expert models
     expert_model_paths = get_expert_model_paths(expert_model_dir)
-    expert_models = load_expert_models(expert_model_paths)       
+    expert_models = load_expert_models(expert_model_paths, nb_ref_per_class)       
     
+    pass
     
-    # Predict with the expert models the article's reference
-    final_predictions = get_final_predictions(expert_models, class_predictions, test_dataset)
+    # # Predict with the expert models the article's reference
+    # final_predictions = get_final_predictions(expert_models, class_predictions, test_dataset)
     
-    # Store evaluation results on graphs
-    compute_results(final_predictions)
+    # # Store evaluation results on graphs
+    # compute_results(final_predictions)
     
-    return final_predictions
+    # return final_predictions
 
 
 
@@ -141,7 +179,7 @@ def main(dataset_path, general_model_path, expert_model_dir):
 if __name__ == "__main__":
     dataset_path = "augmented_dataset"
     general_model_path = "checkpoint-7350"
-    expert_model_dir = ""
+    expert_model_dir = "expert_models"
     
     main(dataset_path=dataset_path, general_model_path=general_model_path, expert_model_dir=expert_model_dir)
     

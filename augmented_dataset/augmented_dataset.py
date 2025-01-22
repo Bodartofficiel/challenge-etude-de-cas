@@ -35,6 +35,7 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
                 {
                     "image": datasets.Image(),
                     "label": datasets.Value("int32"),
+                    "path": datasets.Value("string")
                 }
             ),
             supervised_keys=None,
@@ -65,6 +66,7 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
         i = 0
         for label, label_idx in self.labels.items():
             for image_file in (filepath / label).glob("*"):
+                print("image file ", image_file)
                 image_pil = PIL.Image.open(image_file)
                 image_np_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_BGR2RGB)
 
@@ -72,5 +74,6 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
                     yield i, {
                         "image": image,
                         "label": label_idx,
+                        "path": str(image_file)
                     }
                     i += 1
