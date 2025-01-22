@@ -5,8 +5,10 @@ venv
 venv
 # data
 data
+data_class
 data-cropped
 cropped-dataset
+cropped-dataset-class
 # Python things
 __pycache__
 *.pyc
