@@ -56,6 +56,7 @@ class PipelineTrain:
     def prepare_model(self):
         self.id2label = {str(idx): label for label, idx in self.labels_dict.items()}
         self.label2id = {label: str(idx) for label, idx in self.labels_dict.items()}
+        
         if self.model_name == "google/vit-base-patch16-224-in21k":
             self.model = ViTForImageClassification.from_pretrained(
                 self.model_name,
@@ -76,10 +77,15 @@ class PipelineTrain:
                 torch.nn.Linear(in_features=1280, out_features=len(self.labels_dict)) 
             )
 
+        # Freeze all layers except the last classification layer
+        #for name, param in self.model.named_parameters():
+        #    if "classifier" not in name and "head" not in name:  # Adjust based on the architecture
+        #        param.requires_grad = False
+
     def compute_metrics(self, p):
         predictions = np.argmax(p.predictions, axis=1)
         metric = load("f1")
-        return metric.compute(predictions=predictions, references=p.label_ids)
+        return metric.compute(predictions=predictions, references=p.label_ids, average='weighted')
     
     def initialize_pipeline(self):
         # Load augmented dataset
@@ -103,7 +109,7 @@ class PipelineTrain:
             logging_steps=50,
             save_total_limit=2,
             load_best_model_at_end=True,
-            metric_for_best_model="accuracy",
+            metric_for_best_model="eval_f1",
             remove_unused_columns=False,
             fp16=torch.cuda.is_available(),
             dataloader_pin_memory=False,
