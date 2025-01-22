@@ -13,7 +13,7 @@ from transformers import (
 )
 
 seed = 1
-num_augment = 10
+num_augment = 3
 np.random.seed(seed)
 random.seed(seed)
 torch.random.manual_seed(seed)
@@ -88,7 +88,7 @@ def compute_metrics(p):
 
 # Update training arguments to handle MPS device
 training_args = TrainingArguments(
-    output_dir="./vit-experiment",
+    output_dir="./vit-experiment-test",
     per_device_train_batch_size=16,  # Reduce batch size if memory issues occur
     per_device_eval_batch_size=16,
     gradient_accumulation_steps=2,  # Effective batch size = 16 * 2 = 32
@@ -105,7 +105,7 @@ training_args = TrainingArguments(
     remove_unused_columns=False,
     fp16=torch.cuda.is_available(),  # Enable mixed precision for faster training if CUDA is available
     dataloader_pin_memory=False,
-    report_to=["none"],  # Disable reporting to external platforms like WandB
+    report_to=["mlflow"],  # Disable reporting to external platforms like WandB
 )
 # Add gradient clipping to prevent potential numerical issues
 training_args.max_grad_norm = 1.0
