@@ -4,7 +4,22 @@ from PIL import Image
 import os
 from datasets import load_dataset
 
+from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
+
+from expert_models.mapping import MAPPING_REF
+
 from collections import Counter
+
+'''
+TODO to make this script runnable
+
+- Download and put the weights of the expert models in the expert_models/weights folder with
+this nomenclature : model_weight_W_Accessories.pth
+
+- Download and put the checkpoint of the general model in the repository and adapt the path
+
+- Change the mapping if necessary
+'''
 
 from transformers import (
     Trainer,
@@ -38,42 +53,49 @@ def load_general_model(model_path):
     return model, processor
 
 # Functions to get all the paths for 
-def get_expert_model_paths(expert_model_dir):
+def get_expert_model_paths(expert_model_dir, labels):
     expert_model_paths = {}
-    for chkpt in os.listdir(expert_model_dir):
+    weights_path = os.path.join(expert_model_dir, 'weights')
+    for chkpt in os.listdir(weights_path):
         if chkpt.endswith(".pth"):
-            chkpt_path = os.path.join(expert_model_dir, chkpt)
-            class_idx = chkpt.split('_')[2]
+            
+            chkpt_path = os.path.join(weights_path, chkpt)
+            class_name = chkpt.split('_')[-1].split('.')[0]
+            if class_name != 'Watches':
+                class_name= "W " + class_name
+            class_idx = labels[class_name]
             expert_model_paths[class_idx] = chkpt_path
+            
     return expert_model_paths
 
-# TODO Load the expert models
+# TODO check the weights of the last layers, finetuning ?
 def load_expert_models(expert_model_paths, nb_ref_per_class):
-    
+    # print(expert_model_paths)
     expert_models = {}
-    for i in range(len(expert_model_paths)):
+    
+    for key in expert_model_paths.keys():
         
-        path = expert_model_paths[i]
+        print("passed")
+        path = expert_model_paths[key]
         
         model = ViTForImageClassification.from_pretrained(
             'google/vit-base-patch16-224-in21k',
-            num_labels=nb_ref_per_class[i]
-        )
+            num_labels=nb_ref_per_class[key]
+        ).to(device).eval()
 
-        # Wight paths
+        # Weight paths
         pth_weights_path = path
 
-        state_dict = torch.load(pth_weights_path)
+        state_dict = torch.load(pth_weights_path, map_location = device)
 
-        model.load_state_dict(state_dict, strict=False).to(device).eval()
+        model.load_state_dict(state_dict, strict=False)
 
-        expert_models[i] = model
+        expert_models[key] = model
         
     return expert_models
 
 # Predict the classes
 def predict_general_model(model: ViTForImageClassification, processor, test_dataset, top_k):
-    model.eval()
     predictions = []
     with torch.no_grad():
         for image in test_dataset["image"]:
@@ -83,58 +105,129 @@ def predict_general_model(model: ViTForImageClassification, processor, test_data
             )
             outputs = model.forward(pixel_values=inputs)
             logits = outputs.logits
-            top2_indices = torch.topk(logits, top_k).indices.cpu().numpy().tolist()[0]
-            predictions.append(top2_indices)
+            topk_indices = torch.topk(logits, top_k).indices.cpu().numpy().tolist()[0]
+            predictions.append(topk_indices)
     return predictions
 
 
 # Predict the articles
-def get_final_predictions(expert_models, class_predictions, test_dataset):
+def get_final_predictions(expert_models, class_predictions, test_dataset, mapping, top_k):
     
     final_predictions = []
     
     for idx, class_pred in enumerate(class_predictions):
         # Get the predicted class (first element of the prediction)
+        #TODO add the possibility to have multiples classes
         predicted_class = class_pred[0]
         
-        # Get the corresponding expert model
-        expert_model = expert_models[predicted_class]
+        #TODO remove this specific part
+        if predicted_class != 3:
+
+            # Get the corresponding expert model
+            expert_model = expert_models[predicted_class]
+            
+            # Get the name of the class
+            predicted_class_name = mapping[predicted_class]
+            
+            # Get the image from the dataset
+            image = test_dataset[idx]
+            
+            # Predict the reference using the expert model
+            reference_predictions = predict_expert_model(
+                model=expert_model, image=image, top_k=top_k
+            )
+            
+            # Get the reference code from the mapping
+            ref_pred_codes = []
+            for ref_pred in reference_predictions:
+                ref_pred_codes.append(MAPPING_REF[predicted_class][ref_pred])
         
-        # Get the image from the dataset
-        image = test_dataset[idx]
-        
-        # Predict the reference using the expert model
-        reference_prediction = predict_expert_model(
-            model=expert_model, image = image,
-        )
-        
-        # For the basic classes
-        true_class = test_dataset[idx]['path'].split('/')[2]
-        true_reference = test_dataset[idx]['path'].split('/')[-1].split('.')[0]
-        
-        
-        # TODO add the true class and true reference
-        final_predictions.append({
-            'image_idx': idx,
-            'true_class': true_class,
-            'predicted_class': predicted_class,
-            'true_reference' : true_reference,
-            'predicted_reference': reference_prediction
-        })
+            # For the basic classes
+            true_class = test_dataset[idx]['path'].split('/')[2]
+            
+            true_reference = test_dataset[idx]['path'].split('/')[-1].split('.')[0].split('_')[0]
+            
+            final_predictions.append({
+                'image_idx': idx,
+                'true_class': true_class,
+                'predicted_class': predicted_class_name,
+                'true_reference' : true_reference,
+                'predicted_reference': ref_pred_codes
+            })
         
     return final_predictions
 
 
 # Predict the article's reference
-def predict_expert_model(model, image):
+def predict_expert_model(model, image, top_k=2):
+    with torch.no_grad():
+        
+        # TODO is it the right transformation ?
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),  
+            transforms.ToTensor()
+        ])
+        
+        image = transform(image['image'])
+        image = image.unsqueeze(0).to(device)
+        output = model(image)
+        logits = output.logits
+        values, pred = torch.max(logits, 1)
+        topk_indices = torch.topk(logits, top_k).indices.cpu().numpy().tolist()[0]
+
+    return topk_indices
+
+
+def get_class_scores(predictions):
     
-    pass
+    # Prediction results
+    y_true = [item['true_class'] for item in predictions]
+    y_pred = [item['predicted_class'] for item in predictions]
 
+    # Classification report
+    print("\nRapport de classification (classe):")
+    print(classification_report(y_true, y_pred, zero_division=0))
+    
+    
+def get_ref_scores(predictions):
+    # Prediction results
+    y_true = [item['true_reference'] for item in predictions]
+    y_pred = []
 
-# Functions to compute the score and store graphs 
-def compute_results():
-    pass
+    for item in predictions:
+        true_ref = item['true_reference']
+        predicted_refs = item['predicted_reference']
 
+        # If the reference is in the predicted references, count it as a correct prediction
+        if isinstance(predicted_refs, list) and true_ref in predicted_refs:
+            y_pred.append(true_ref)
+        else:
+            y_pred.append(predicted_refs[0] if isinstance(predicted_refs, list) else predicted_refs)
+
+    # Display classifciation report
+    print("\nRapport de classification (références) :")
+    # TODO check the labels we want (only true or not)
+    print(classification_report(y_true, y_pred, labels=list(set(y_true)), zero_division=0))
+    
+    # Count the number of ref that are not coreectly predicted
+    
+    nb_wrong_ref = 0
+    for instance in predictions:
+        if instance['true_reference'] not in instance['predicted_reference']:
+            nb_wrong_ref += 1
+    print("Number of wrong ref : ", nb_wrong_ref)
+    
+    # Count the number of classes that are not correctly predicted
+    
+    nb_wrong_class = 0
+    for instance in predictions:
+        if instance['true_class'] != instance['predicted_class']:
+            nb_wrong_class += 1
+    print("Number of wrong class : ", nb_wrong_class)
+    
+    print("Ratio of wrong class among wrong ref : ", nb_wrong_class/nb_wrong_ref)
+    
+    
 
 def main(dataset_path, general_model_path, expert_model_dir):
     
@@ -146,6 +239,8 @@ def main(dataset_path, general_model_path, expert_model_dir):
             "Watches": 4,
         }
     
+    reverse_labels = {v : k for k,v in labels.items()}
+
     # Load Test Dataset
     dataset = load_dataset_train_test(dataset_path)
     test_dataset = dataset["test"]
@@ -155,28 +250,29 @@ def main(dataset_path, general_model_path, expert_model_dir):
     general_model, processor = load_general_model(general_model_path)
 
     # Predict the classes for each instance
-    class_predictions = predict_general_model(model=general_model, processor=processor, test_dataset=test_dataset, top_k=1)
-    print(class_predictions)
+    class_predictions = predict_general_model(model=general_model, processor=processor, test_dataset=test_dataset, top_k=2)
 
-    
     # Load the expert models
-    expert_model_paths = get_expert_model_paths(expert_model_dir)
+    expert_model_paths = get_expert_model_paths(expert_model_dir=expert_model_dir, labels=labels)
     expert_models = load_expert_models(expert_model_paths, nb_ref_per_class)       
+
+    # Predict with the expert models the article's reference
+    final_predictions = get_final_predictions(expert_models,class_predictions, test_dataset, reverse_labels, top_k=1)
     
-    pass
+    # print(final_predictions)
+
+    get_class_scores(final_predictions)
+    get_ref_scores(final_predictions)
     
-    # # Predict with the expert models the article's reference
-    # final_predictions = get_final_predictions(expert_models, class_predictions, test_dataset)
-    
-    # # Store evaluation results on graphs
-    # compute_results(final_predictions)
-    
-    # return final_predictions
+
 
 
 
 # Si ce fichier est exécuté directement, appeler la fonction main
 if __name__ == "__main__":
+    
+    # TODO change the name if necessary
+    
     dataset_path = "augmented_dataset"
     general_model_path = "checkpoint-7350"
     expert_model_dir = "expert_models"
