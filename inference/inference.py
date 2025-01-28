@@ -6,6 +6,11 @@ from datasets import load_dataset
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
 
+import sys
+import os
+# Ajouter le chemin du répertoire parent
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from expert_models.mapping import MAPPING_REF
 
 from collections import Counter
