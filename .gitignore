@@ -24,3 +24,5 @@ models
 *.bin
 
 /mlflow*
+
+/res
