@@ -8,7 +8,7 @@ from transformers import ViTForImageClassification, ViTImageProcessor
 
 # Paths
 root = pathlib.Path(__file__).parent.parent
-model_save_path = root / "vit-experiment" / "checkpoint-7350"
+model_save_path = root / "models/vit-experiment" / "checkpoint-7350"
 dataset_path = root / "augmented_dataset"
 
 # Load the model and tokenizer
@@ -95,5 +95,3 @@ def metrics(logits: torch.Tensor, reference, top_k=2):
 predictions = logits(model, test_dataset)
 reference = test_dataset["label"]
 print(metrics(predictions, reference))
-
-exit()

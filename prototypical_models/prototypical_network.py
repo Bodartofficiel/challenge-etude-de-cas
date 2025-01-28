@@ -44,10 +44,10 @@ test = test.map(collate, batched=True, batch_size=batch_size, remove_columns="im
 
 
 # Directory to store embeddings
-os.makedirs("embeddings", exist_ok=True)
+os.makedirs("./embeddings", exist_ok=True)
 
 # Step 1: Save train embeddings in chunks
-train_embeddings_path = "embeddings/train_embeddings.pt"
+train_embeddings_path = "./embeddings/train_embeddings.pt"
 if not os.path.exists(train_embeddings_path):
     train_embeddings = torch.tensor(train["pixel_values"])
     torch.save(train_embeddings, train_embeddings_path)
@@ -76,9 +76,6 @@ for batch in tqdm(test, desc="Processing test dataset"):
 
     cosine_similarities.append(similarity)
 print(correct / total)
-
-
-exit()
 
 # Step 3: Post-process and analyze cosine similarities
 cosine_similarities = torch.cat(cosine_similarities, dim=1)

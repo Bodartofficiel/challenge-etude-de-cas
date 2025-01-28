@@ -10,8 +10,8 @@ from PIL import Image
 import os
 
 # Paths to the new dataset
-train_data_dir = "../organized_color_cropped_train_val/train"
-val_data_dir = "../organized_color_cropped_train_val/val"
+train_data_dir = "data/organized_color_cropped_train_val/train"
+val_data_dir = "data/organized_color_cropped_train_val/val"
 
 # Define transforms for augmentation and normalization
 train_transform = transforms.Compose([
@@ -112,7 +112,7 @@ def train_and_save(model=model, num_epochs=45, output_path="resnet50_finetuned.p
 
     torch.save(model.state_dict(), output_path)
 
-def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir="cropped-dataset/articles_test", output_csv="predictions.csv", train_dataset=train_dataset):
+def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir="data/cropped-dataset/articles_test", output_csv="predictions.csv", train_dataset=train_dataset):
     # Load the trained model
     model.load_state_dict(torch.load(model_path))
     model.eval()
@@ -152,7 +152,7 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
                 predictions.append({"image_name": image_name_no_ext, "predicted_class": predicted_class, "predicted_second_class": predicted_second_class, "predicted_third_class": predicted_third_class})
 
                 # Load the product list with new classes CSV
-                product_list_df = pd.read_csv("process_new_classes/classes/n796/product_list_with_new_classe(n=796).csv")
+                product_list_df = pd.read_csv("process_new_classes/classes/V2/product_list_with_new_classe(n=625).csv")
 
                 # Merge predictions with labeled test articles to get the real article_id
                 predictions_df = pd.DataFrame(predictions)
