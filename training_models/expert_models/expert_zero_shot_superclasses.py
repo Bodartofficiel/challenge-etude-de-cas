@@ -40,7 +40,7 @@ for class_name in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
 
     # Encoder les labels de l'ensemble de données "train"
     file_path = "process_new_classes/classes/V2/product_list_with_new_classe(n=625).csv"
-
+    #file_path =  'product_color_list.csv'
     # Charger le fichier CSV dans un DataFrame
     try:
         df = pd.read_csv(file_path)
@@ -98,7 +98,12 @@ for class_name in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
             print("no test available for this class")
 
             # Charger le modèle Vision Transformer (ViT) pré-entraîné
-        model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224-in21k")
+        from transformers import AutoModelForImageClassification, AutoImageProcessor
+
+        repo_name = "samokosik/finetuned-clothes"
+
+        image_processor = AutoImageProcessor.from_pretrained(repo_name)
+        model = AutoModelForImageClassification.from_pretrained(repo_name)
         # Supprimer la dernière couche de classification
         model.classifier = nn.Identity()
 
@@ -235,14 +240,16 @@ for class_name in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
         accuracy = accuracy_score(test_labels.numpy(), predicted_labels.numpy())
 
         # Predict top-3 labels for test set
-        try:
-            top_3_predicted = predict_labels(similarity_matrix, train_labels, top_k=5)
-            correct_top_3 = (test_labels.unsqueeze(1) == top_3_predicted).any(dim=1)
-            accuracy_top_3 = correct_top_3.float().mean().item()
-        except Exception as e:
-            accuracy_top_3 = "No data"
-            print(f"Error calculating top-3 accuracy: {e}")
-
+        accuracy_top = []
+        for k in range(2, 11):
+            try:
+                top_3_predicted = predict_labels(similarity_matrix, train_labels, top_k= k )
+                correct_top_3 = (test_labels.unsqueeze(1) == top_3_predicted).any(dim=1)
+                accuracy_top_3 = correct_top_3.float().mean().item()
+            except Exception as e:
+                accuracy_top_3 = "No data"
+                print(f"Error calculating top-3 accuracy: {e}")
+            accuracy_top.append(accuracy_top_3)
         # Calculate if true label is among top 3 predictions
         print(
             f"Zero-shot accuracy: {accuracy:.4f}", f"Top-3 accuracy: {accuracy_top_3}"
@@ -251,9 +258,17 @@ for class_name in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
             "superclass": class_name,
             "class": i,
             "zero-shot accuracy": accuracy,
-            "top-3 accuracy": accuracy_top_3,
+            "top-2 accuracy": accuracy_top[0],
+            "top-3 accuracy": accuracy_top[1],
+            "top-4 accuracy": accuracy_top[2],
+            "top-5 accuracy": accuracy_top[3],
+            "top-6 accuracy": accuracy_top[4],
+            "top-7 accuracy": accuracy_top[5],
+            "top-8 accuracy": accuracy_top[6],
+            "top-9 accuracy": accuracy_top[7],
+            "top-10 accuracy": accuracy_top[8],
             "number of test images": len(dataset["test"]),
             "number of possible articles": len(dataset["train"]),
         }
         results = pd.concat([results, pd.DataFrame([new_row])])
-    results.to_csv("results_ViTtop_5.csv")
+    results.to_csv("results_ViT_top_k.csv")
