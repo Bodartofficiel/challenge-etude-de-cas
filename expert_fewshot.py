@@ -15,51 +15,45 @@ import torch.nn.functional as F
 
 # Charge le dataset
 dataset_path = "augmented_dataset_expert"
-num_augment = 0
+num_augment = 2
+num_epochs = 5
+margin = 1
+lr = 1e-4
 for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
-    dataset = load_dataset(
-        str(dataset_path),
-        trust_remote_code=True,
-        num_augments=num_augment,
-        class_name=class_names,
-    )
+
+    dataset = load_dataset(str(dataset_path), trust_remote_code=True, num_augments = num_augment , class_name = class_names)
 
     from sklearn.preprocessing import LabelEncoder
     import json
+
 
     # Créer un encodeur
     label_encoder = LabelEncoder()
 
     # Encoder les labels de l'ensemble de données "train"
-    train_labels = dataset["train"][
-        "label"
-    ]  # Assurez-vous que les labels sont sous forme de liste ou tableau
+    train_labels = dataset['train']['label']  # Assurez-vous que les labels sont sous forme de liste ou tableau
     encoded_train_labels = label_encoder.fit_transform(train_labels)
     # Save label encoder
     label_mapping = {label: index for index, label in enumerate(label_encoder.classes_)}
-    dataset["train"] = dataset["train"].add_column(
-        "encoded_label", encoded_train_labels
-    )
-    with open(f"label_encoder_{dataset_path.split('_')[-1]}.txt", "w") as f:
+    dataset['train'] = dataset['train'].add_column('encoded_label', encoded_train_labels)
+    with open(f'label_encoder_{dataset_path.split("_")[-1]}.txt', 'w') as f:
         json.dump(label_mapping, f)
 
-    test_labels = dataset["test"]["label"]
+
+    test_labels = dataset['test']['label']
     encoded_test_labels = label_encoder.transform(test_labels)
 
-    dataset["test"] = dataset["test"].add_column("encoded_label", encoded_test_labels)
+    dataset['test'] = dataset['test'].add_column('encoded_label', encoded_test_labels)
+
 
     # Vérifier la disponibilité du GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Définir les transformations pour les images
-    transform = transforms.Compose(
-        [
-            transforms.Resize(
-                (224, 224)
-            ),  # ViT prend généralement des images de taille (224, 224)
-            transforms.ToTensor(),
-        ]
-    )
+    transform = transforms.Compose([
+       # ViT prend généralement des images de taille (224, 224)
+        transforms.ToTensor(),
+    ])
 
     # Créer une classe Dataset personnalisée
     class CustomDataset(Dataset):
@@ -71,19 +65,20 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
             return len(self.dataset)
 
         def __getitem__(self, idx):
-            image = self.dataset[idx]["image"]
-            label = self.dataset[idx]["encoded_label"]
+            image = self.dataset[idx]['image']
+            label = self.dataset[idx]['encoded_label']
             if self.transform:
                 image = self.transform(image)
             return image, label
 
     # Créer le dataset
-    train_dataset = CustomDataset(dataset["train"], transform=transform)
+    train_dataset = CustomDataset(dataset['train'], transform=transform)
 
+    
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
     # Charger le modèle Vision Transformer (ViT) pré-entraîné
-
+    
     class TripletLoss(nn.Module):
         def __init__(self, margin=1.0):
             super(TripletLoss, self).__init__()
@@ -93,11 +88,11 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
             # Calculer les distances
             pos_distance = F.pairwise_distance(anchor, positive)
             neg_distance = F.pairwise_distance(anchor, negative)
-
+            
             # Calculer la triplet loss
             losses = F.relu(pos_distance - neg_distance + self.margin)
             return losses.mean()
-
+    
     def compute_prototypes(features, labels):
         unique_labels = torch.unique(labels)
         prototypes = []
@@ -111,19 +106,17 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
     def prototypical_loss(features, labels, prototypes, prototype_labels):
         # Calculer les distances entre les features et les prototypes
         distances = torch.cdist(features, prototypes)
-
+        
         # Convertir les labels en indices pour les prototypes
-        label_to_index = {
-            label.item(): idx for idx, label in enumerate(prototype_labels)
-        }
-        target_indices = torch.tensor(
-            [label_to_index[label.item()] for label in labels]
-        ).to(device)
-
+        label_to_index = {label.item(): idx for idx, label in enumerate(prototype_labels)}
+        target_indices = torch.tensor([label_to_index[label.item()] for label in labels]).to(device)
+        
         # Calculer la loss (negative log-likelihood)
         loss = F.cross_entropy(-distances, target_indices)
         return loss
-
+    
+    
+    
     def evaluatetop3(model, val_loader, top_k=3):
         model.eval()  # Set the model to evaluation mode
         top_k_correct = 0  # Initialize counter for correct top-k predictions
@@ -138,14 +131,10 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
 
                 # Get the top-k predictions
                 _, preds = torch.topk(outputs, top_k, dim=1, largest=True, sorted=True)
-
+                
                 # Check if the true label is among the top-k predictions
-                correct = preds.eq(
-                    labels.view(-1, 1).expand_as(preds)
-                )  # Compare with labels
-                top_k_correct += (
-                    correct.sum().item()
-                )  # Sum the number of correct top-k predictions
+                correct = preds.eq(labels.view(-1, 1).expand_as(preds))  # Compare with labels
+                top_k_correct += correct.sum().item()  # Sum the number of correct top-k predictions
                 total_samples += labels.size(0)  # Count the total number of samples
 
         # Calculate the top-k accuracy
@@ -153,41 +142,32 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
         return top_k_accuracy
 
     print(device)
-
     # Définir la fonction de perte et l'optimiseur
     def generate_triplets(features, labels):
         anchors = []
         positives = []
         negatives = []
-
+        
         for i in range(len(features)):
             anchor = features[i]
             label = labels[i]
-
+            
             # Trouver un positif (même classe)
             positive_indices = (labels == label).nonzero(as_tuple=True)[0]
-            positive_idx = positive_indices[
-                torch.randint(0, len(positive_indices), (1,))
-            ]
+            positive_idx = positive_indices[torch.randint(0, len(positive_indices), (1,))]
             positive = features[positive_idx]
             
-
             # Trouver un négatif (classe différente)
             negative_indices = (labels != label).nonzero(as_tuple=True)[0]
-            negative_idx = negative_indices[
-                torch.randint(0, len(negative_indices), (1,))
-            ]
-        
-            print(negative_idx)
+            negative_idx = negative_indices[torch.randint(0, len(negative_indices), (1,))]
             negative = features[negative_idx]
-            print(labels[negative_idx])
-
+            
             anchors.append(anchor)
             positives.append(positive)
             negatives.append(negative)
-
+        
         return torch.stack(anchors), torch.stack(positives), torch.stack(negatives)
-
+    
     # Fonction pour évaluer le modèle
     def evaluate(model, val_loader):
         model.eval()  # Mettre le modèle en mode évaluation
@@ -206,60 +186,51 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
         return accuracy
 
         # Définir le modèle et la loss
-
-    # model = models.mobilenet_v2(weights = 'DEFAULT')
-    # model.classifier = nn.Identity()  # Supprimer la dernière couche de classification
-    model = ViTForImageClassification.from_pretrained('google/vit-base-patch16-224-in21k', num_labels=len(set(dataset['train']['encoded_label'])))
-
-    model.classifier = (
-        nn.Identity()
-    )  # Remove classification layer for prototypical network
+    model = models.mobilenet_v2(pretrained = True)
+    model.classifier = nn.Identity()  # Supprimer la dernière couche de classification
     model = model.to(device)
 
-    triplet_loss_fn = TripletLoss(margin=1.0)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-
+    triplet_loss_fn = TripletLoss(margin=margin)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    
     # Boucle d'entraînement
-    num_epochs = 10
+    
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         for images, labels in tqdm(train_loader):
             images = images.to(device)
             labels = labels.to(device)
-
+            
             # Extraire les features
             features = model(images)
-
+            
             # Générer des triplets (anchor, positive, negative)
             # (Vous pouvez utiliser une fonction pour générer des triplets)
             anchors, positives, negatives = generate_triplets(features, labels)
-
+            
             # Calculer la triplet loss
             triplet_loss = triplet_loss_fn(anchors, positives, negatives)
-
+            
             # Calculer les prototypes et la prototypical loss
             prototypes, prototype_labels = compute_prototypes(features, labels)
-            proto_loss = prototypical_loss(
-                features, labels, prototypes, prototype_labels
-            )
-
+            proto_loss = prototypical_loss(features, labels, prototypes, prototype_labels)
+            
             # Combiner les losses
             loss = triplet_loss + proto_loss
-
+            
             # Mise à jour du modèle
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            
             running_loss += loss.item()
+        
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}")
 
-        print(
-            f"Epoch {epoch + 1}/{num_epochs}, Loss: {running_loss / len(train_loader)}"
-        )
-
+        
     # Create test dataset and dataloader
-    test_dataset = CustomDataset(dataset["test"], transform=transform)
+    test_dataset = CustomDataset(dataset['test'], transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
     # Évaluer sur l'ensemble de test
@@ -275,12 +246,7 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
             for images, lbls in dataloader:
                 images = images.to(device)  # Déplacer les images sur le GPU
                 outputs = model(images)  # Extraire les features
-                try:
-                    features.append(
-                        outputs.logits.cpu()
-                    )  # Déplacer les features sur le CPU
-                except:
-                    features.append(outputs.cpu())
+                features.append(outputs.cpu())  # Déplacer les features sur le CPU
                 labels.append(lbls.cpu())  # Déplacer les labels sur le CPU
         return torch.cat(features), torch.cat(labels)
 
@@ -311,7 +277,7 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
     accuracy = accuracy_score(test_labels.numpy(), predicted_labels.numpy())
     # Predict top-3 labels for test set
     # Suppose `similarity_matrix` is your matrix of predicted similarities (test x train)
-    # and `train_labels` contains the corresponding labels for the training embeddings.
+# and `train_labels` contains the corresponding labels for the training embeddings.
 
     def predict_labels(similarity_matrix, train_labels, top_k=3):
         # Trouver les indices des top_k similarités (par ordre décroissant)
@@ -324,15 +290,11 @@ for class_names in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
     top_3_predicted = predict_labels(similarity_matrix, train_labels, top_k=3)
 
     # Vérifier si le vrai label est à la position 1, 2 ou 3
-    correct_top_3 = (
-        (test_labels == top_3_predicted[:, 0])
-        | (test_labels == top_3_predicted[:, 1])
-        | (test_labels == top_3_predicted[:, 2])
-    )
+    correct_top_3 = (test_labels == top_3_predicted[:, 0]) | \
+                    (test_labels == top_3_predicted[:, 1]) | \
+                    (test_labels == top_3_predicted[:, 2])
 
     # Calculer la précision
     accuracy_top_3 = correct_top_3.float().mean().item()
 
-    print(
-        f"Zero-shot accuracy: {accuracy:.4f}", f"Top-3 accuracy: {accuracy_top_3:.4f}"
-    )
+    print(f"Zero-shot accuracy: {accuracy:.4f}", f"Top-3 accuracy: {accuracy_top_3:.4f}")
