@@ -14,7 +14,7 @@ from pathlib import Path
 from sklearn.preprocessing import LabelEncoder
 import json
 # Charge le dataset
-dataset_path = "augmented_dataset_expert"
+dataset_path = Path(__file__).parent.parent.parent / "augmented_data/augmented_dataset_expert"
 
 for class_names in ["W Accessories", "W SLG", "Watches"]:
 

@@ -131,9 +131,9 @@ class PipelineTrain:
 try:
     # Initialize pipeline
     pipeline = PipelineTrain(model_name = "google/vit-base-patch16-224-in21k",
-                    dataset_path = Path(__file__).parent.parent / "augmented_dataset_class" , 
-                    labels_dict = "cropped-dataset-class/articles_train",
-                    outputdir="./vit-class")
+                    dataset_path = Path(__file__).parent.parent.parent / "augmented_data/augmented_dataset_class" , 
+                    labels_dict = "data/cropped-dataset-class/articles_train",
+                    outputdir=Path(__file__).parent.parent.parent / "models/vit-class")
     trainer = pipeline.initialize_pipeline()
     train_results = trainer.train()
     print("Training complete.")

@@ -15,7 +15,7 @@ model = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k")
 
 # Load dataset
 dataset = load_dataset(
-    "./augmented_dataset",
+    "./augmented_data/augmented_dataset",
     name="full_augmented_dataset_with_0_augment",
     num_augments=0,
     trust_remote_code=True,
@@ -78,6 +78,6 @@ for batch in tqdm(test, desc="Processing test dataset"):
 print(correct / total)
 
 # Step 3: Post-process and analyze cosine similarities
-cosine_similarities = torch.cat(cosine_similarities, dim=1)
+cosine_similarities = torch.cat(cosine_similarities)
 print("Cosine similarities computed!")
 print("Shape of similarity matrix:", cosine_similarities.shape)  # (num_test, num_train)

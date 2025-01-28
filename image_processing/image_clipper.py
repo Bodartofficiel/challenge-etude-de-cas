@@ -97,7 +97,7 @@ if __name__ == "__main__":
     file_path = pathlib.Path(__file__).resolve()
     main_dir = file_path.parent.parent
     dir = "test_image_headmind"
-    image_dir_path = main_dir / "data" / dir
+    image_dir_path = main_dir / "data/data" / dir
     image_dir = list(image_dir_path.glob("*"))
 
     # image_path = "data/test_image_headmind/IMG_6934.jpg"
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         cropped_image = crop_with_mask_and_resize(image_path)
 
         # Afficher ou sauvegarder le résultat
-        output_dir = main_dir / "data-cropped" / dir
+        output_dir = main_dir / "data/data-cropped" / dir
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / img_path.name
         cropped_image.save(output_path)
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     file_path = pathlib.Path(__file__).resolve()
     main_dir = file_path.parent.parent
     dir = "DAM"
-    image_dir_path = main_dir / "data" / dir
+    image_dir_path = main_dir / "data/data" / dir
     image_dir = list(image_dir_path.glob("*"))
 
     # image_path = "data/test_image_headmind/IMG_6934.jpg"
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         cropped_image = crop_with_mask_and_resize(image_path)
 
         # Afficher ou sauvegarder le résultat
-        output_dir = main_dir / "data-cropped" / dir
+        output_dir = main_dir / "data/data-cropped" / dir
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / img_path.name
         cropped_image.save(output_path)
