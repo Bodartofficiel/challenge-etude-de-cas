@@ -115,7 +115,7 @@ class PipelineTrain:
 try:
     # Initialize pipeline
     pipeline = PipelineTrain(model_name = "google/mobilenet_v2_1.0_224",
-                    dataset_path = Path(__file__).parent.parent / "augmented_dataset" , 
+                    dataset_path = Path(__file__).parent.parent.parent / "augmented_data/augmented_dataset" , 
                     labels_dict = {"W Accessories": 0,"W Bags": 1,"W SLG": 2,"W Shoes": 3,"Watches": 4})
     trainer = pipeline.initialize_pipeline()
     train_results = trainer.train()

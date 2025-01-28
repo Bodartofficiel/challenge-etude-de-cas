@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 from pathlib import Path
 # Charge le dataset
-dataset_path = "augmented_dataset_expert"
+dataset_path = Path(__file__).parent.parent.parent / "augmented_data/augmented_dataset_expert"
 
 dataset = load_dataset(str(dataset_path), trust_remote_code=True, num_augments = 4, class_name = "Watches" )
 

@@ -150,7 +150,7 @@ def load_csv_to_dataframe(csv_filepath):
 
 if __name__ == "__main__":
     
-    data_path = "../data/"
+    data_path = "../data/data/"
     train_dirname = "DAM"
     
     csv_filepath = "./classes/n796/*.csv"

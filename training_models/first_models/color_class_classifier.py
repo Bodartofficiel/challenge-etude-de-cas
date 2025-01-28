@@ -2,6 +2,7 @@ import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 import torch
+from pathlib import Path
 import torchvision.models as models
 import torch.optim as optim
 from tqdm import tqdm
@@ -10,8 +11,8 @@ from PIL import Image
 import os
 
 # Paths to the new dataset
-train_data_dir = "data/organized_color_cropped_train_val/train"
-val_data_dir = "data/organized_color_cropped_train_val/val"
+train_data_dir = Path(__file__).parent.parent.parent / "data/organized_color_cropped_train_val/train"
+val_data_dir = Path(__file__).parent.parent.parent / "data/organized_color_cropped_train_val/val"
 
 # Define transforms for augmentation and normalization
 train_transform = transforms.Compose([
