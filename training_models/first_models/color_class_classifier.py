@@ -12,8 +12,8 @@ from evaluate import load
 
 f1_score = metric = load("f1")
 # Paths to the new dataset
-train_data_dir = "../organized_color_cropped_train_val/train"
-val_data_dir = "../organized_color_cropped_train_val/val"
+train_data_dir = "data/organized_color_cropped_train_val/train"
+val_data_dir = "data/organized_color_cropped_train_val/val"
 
 # Define transforms for augmentation and normalization
 train_transform = transforms.Compose([
@@ -187,7 +187,7 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
                     "predicted_third_class": predicted_third_class[:-6]
                 })
                 # Load the product list with new classes CSV
-                product_list_df = pd.read_csv("product_color_list.csv")
+                # product_list_df = pd.read_csv("product_color_list.csv")
 
                 # Merge predictions with labeled test articles to get the real article_id
                 predictions_df = pd.DataFrame(predictions)
