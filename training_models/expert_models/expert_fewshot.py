@@ -14,7 +14,7 @@ from pathlib import Path
 import torch.nn.functional as F
 
 # Charge le dataset
-dataset_path = "augmented_dataset_expert"
+dataset_path = "augmented_data/augmented_dataset_expert"
 num_augment = 2
 num_epochs = 5
 margin = 1

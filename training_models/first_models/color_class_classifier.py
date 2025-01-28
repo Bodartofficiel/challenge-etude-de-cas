@@ -187,17 +187,17 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
                     "predicted_second_class": predicted_second_class[:-6], 
                     "predicted_third_class": predicted_third_class[:-6]
                 })
-                # Load the product list with new classes CSV
-                # product_list_df = pd.read_csv("product_color_list.csv")
+            # Load the product list with new classes CSV
+            product_list_df = pd.read_csv("product_color_list.csv")
 
-                # Merge predictions with labeled test articles to get the real article_id
-                predictions_df = pd.DataFrame(predictions)
-                
-                # Merge with product list to get real_class and group_class
-                predictions_df = predictions_df.merge(product_list_df, left_on="image_name", right_on="MMC", how="left")
+            # Merge predictions with labeled test articles to get the real article_id
+            predictions_df = pd.DataFrame(predictions)
+            
+            # Merge with product list to get real_class and group_class
+            predictions_df = predictions_df.merge(product_list_df, left_on="image_name", right_on="MMC", how="left")
 
-                # Save the final predictions to CSV
-                predictions_df.to_csv(output_csv, index=False)
+            # Save the final predictions to CSV
+            predictions_df.to_csv(output_csv, index=False)
     # Calculate the percentage of correct predictions
     correct_predictions = 0
     correct_predictions_second = 0

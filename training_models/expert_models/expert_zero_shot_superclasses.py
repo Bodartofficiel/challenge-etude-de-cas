@@ -25,7 +25,7 @@ results = pd.DataFrame(
     ]
 )
 # Charge le dataset
-dataset_path = "augmented_dataset_expert"
+dataset_path = "augmented_data/augmented_dataset_expert"
 num_augment = 0
 for class_name in ["W Shoes", "W Accessories", "W SLG", "Watches", "W Bags"]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
