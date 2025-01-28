@@ -3,7 +3,7 @@ from torchvision import transforms
 from PIL import Image
 import os
 from datasets import load_dataset
-
+import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
 
 from expert_models.mapping import MAPPING_REF
@@ -34,6 +34,9 @@ device = torch.device(
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu")
+
+# Set up the seed 
+torch.manual_seed(0)
 
 # Load the test dataset
 def load_dataset_train_test(dataset_path):
@@ -70,12 +73,10 @@ def get_expert_model_paths(expert_model_dir, labels):
 
 # TODO check the weights of the last layers, finetuning ?
 def load_expert_models(expert_model_paths, nb_ref_per_class):
-    # print(expert_model_paths)
     expert_models = {}
     
     for key in expert_model_paths.keys():
-        
-        print("passed")
+    
         path = expert_model_paths[key]
         
         model = ViTForImageClassification.from_pretrained(
@@ -117,44 +118,41 @@ def get_final_predictions(expert_models, class_predictions, test_dataset, mappin
     
     for idx, class_pred in enumerate(class_predictions):
         # Get the predicted class (first element of the prediction)
-        #TODO add the possibility to have multiples classes
+        #TODO add the possibility to have multiples classes, and then select the top3 ref for each class ?
         predicted_class = class_pred[0]
         
-        #TODO remove this specific part
-        if predicted_class != 3:
-
-            # Get the corresponding expert model
-            expert_model = expert_models[predicted_class]
-            
-            # Get the name of the class
-            predicted_class_name = mapping[predicted_class]
-            
-            # Get the image from the dataset
-            image = test_dataset[idx]
-            
-            # Predict the reference using the expert model
-            reference_predictions = predict_expert_model(
-                model=expert_model, image=image, top_k=top_k
-            )
-            
-            # Get the reference code from the mapping
-            ref_pred_codes = []
-            for ref_pred in reference_predictions:
-                ref_pred_codes.append(MAPPING_REF[predicted_class][ref_pred])
+        # Get the corresponding expert model
+        expert_model = expert_models[predicted_class]
         
-            # For the basic classes
-            true_class = test_dataset[idx]['path'].split('/')[2]
-            
-            true_reference = test_dataset[idx]['path'].split('/')[-1].split('.')[0].split('_')[0]
-            
-            final_predictions.append({
-                'image_idx': idx,
-                'true_class': true_class,
-                'predicted_class': predicted_class_name,
-                'true_reference' : true_reference,
-                'predicted_reference': ref_pred_codes
-            })
+        # Get the name of the class
+        predicted_class_name = mapping[predicted_class]
         
+        # Get the image from the dataset
+        image = test_dataset[idx]
+        
+        # Predict the reference using the expert model
+        reference_predictions = predict_expert_model(
+            model=expert_model, image=image, top_k=top_k
+        )
+        
+        # Get the reference code from the mapping
+        ref_pred_codes = []
+        for ref_pred in reference_predictions:
+            ref_pred_codes.append(MAPPING_REF[predicted_class][ref_pred])
+    
+        # For the basic classes
+        true_class = test_dataset[idx]['path'].split('/')[2]
+        
+        true_reference = test_dataset[idx]['path'].split('/')[-1].split('.')[0].split('_')[0]
+        
+        final_predictions.append({
+            'image_idx': idx,
+            'true_class': true_class,
+            'predicted_class': predicted_class_name,
+            'true_reference' : true_reference,
+            'predicted_reference': ref_pred_codes
+        })
+    
     return final_predictions
 
 
@@ -185,7 +183,7 @@ def get_class_scores(predictions):
     y_pred = [item['predicted_class'] for item in predictions]
 
     # Classification report
-    print("\nRapport de classification (classe):")
+    print("\nClassification report (super class):")
     print(classification_report(y_true, y_pred, zero_division=0))
     
     
@@ -198,17 +196,29 @@ def get_ref_scores(predictions):
         true_ref = item['true_reference']
         predicted_refs = item['predicted_reference']
 
+        # Compute accuracy
         # If the reference is in the predicted references, count it as a correct prediction
         if isinstance(predicted_refs, list) and true_ref in predicted_refs:
             y_pred.append(true_ref)
         else:
             y_pred.append(predicted_refs[0] if isinstance(predicted_refs, list) else predicted_refs)
 
+    # Compute accuracy    
+    accuracy = sum([1 for i in range(len(y_true)) if y_true[i] == y_pred[i]]) / len(y_true)
+    
     # Display classifciation report
-    print("\nRapport de classification (références) :")
+    print("\nClassification report (references):")
     # TODO check the labels we want (only true or not)
     print(classification_report(y_true, y_pred, labels=list(set(y_true)), zero_division=0))
+    report = classification_report(y_true, y_pred, zero_division=0, labels=list(set(y_true)), output_dict=True)
     
+    # Extraire les scores pour micro, macro et weighted avg
+    metrics_method = ['micro avg', 'macro avg', 'weighted avg']
+    metrics = ['precision', 'recall', 'f1-score']
+    
+    scores = {metric: {method: report[method][metric] for method in metrics_method} for metric in metrics}
+    scores['accuracy'] = accuracy
+
     # Count the number of ref that are not coreectly predicted
     
     nb_wrong_ref = 0
@@ -227,6 +237,30 @@ def get_ref_scores(predictions):
     
     print("Ratio of wrong class among wrong ref : ", nb_wrong_class/nb_wrong_ref)
     
+    
+    return scores
+
+def compute_results(scores, method):
+    method = 'macro avg'
+    
+    # Plot the results for the precision base on the evolution of topk
+    precision = [scores[i]['precision'][method] for i in range(1,11)]
+    accuracy = [scores[i]['accuracy'] for i in range(1,11)]
+    recall = [scores[i]['recall'][method] for i in range(1,11)]
+    f1 = [scores[i]['f1-score'][method] for i in range(1,11)]
+    
+    plt.plot(precision, label='Precision')
+    plt.plot(accuracy, label='Accuracy')
+    plt.plot(recall, label='Recall')
+    plt.plot(f1, label='F1-score')
+    
+    plt.title('Scores evolution with topk for {}'.format(method))
+    plt.xlabel('Topk')
+    plt.ylabel('Scores')
+    
+    plt.legend()
+    #save the figure
+    plt.savefig('res/metrics_results.png')
     
 
 def main(dataset_path, general_model_path, expert_model_dir):
@@ -250,22 +284,21 @@ def main(dataset_path, general_model_path, expert_model_dir):
     general_model, processor = load_general_model(general_model_path)
 
     # Predict the classes for each instance
-    class_predictions = predict_general_model(model=general_model, processor=processor, test_dataset=test_dataset, top_k=2)
+    class_predictions = predict_general_model(model=general_model, processor=processor, test_dataset=test_dataset, top_k=1)
 
     # Load the expert models
     expert_model_paths = get_expert_model_paths(expert_model_dir=expert_model_dir, labels=labels)
     expert_models = load_expert_models(expert_model_paths, nb_ref_per_class)       
 
-    # Predict with the expert models the article's reference
-    final_predictions = get_final_predictions(expert_models,class_predictions, test_dataset, reverse_labels, top_k=1)
+    scores = {}
+    for i in range(10):
+        # Predict with the expert models the article's reference
+        final_predictions = get_final_predictions(expert_models,class_predictions, test_dataset, reverse_labels, top_k=i+1)
+        scores[i+1] = get_ref_scores(final_predictions)
     
-    # print(final_predictions)
-
-    get_class_scores(final_predictions)
-    get_ref_scores(final_predictions)
+    method = 'macro avg'
+    compute_results(scores, method)
     
-
-
 
 
 # Si ce fichier est exécuté directement, appeler la fonction main
