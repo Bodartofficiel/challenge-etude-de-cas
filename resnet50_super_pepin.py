@@ -8,7 +8,9 @@ from tqdm import tqdm
 import pandas as pd
 from PIL import Image
 import os
+from evaluate import load
 
+f1_score = metric = load("f1")
 # Paths to the new dataset
 train_data_dir = "../organized_color_cropped_train_val/train"
 val_data_dir = "../organized_color_cropped_train_val/val"
@@ -112,6 +114,35 @@ def train_and_save(model=model, num_epochs=45, output_path="resnet50_finetuned.p
 
     torch.save(model.state_dict(), output_path)
 
+
+def evaluate_model(model, val_loader, device):
+    model.eval()
+    all_labels = []
+    all_predictions = []
+    all_predictions_top3 = []
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted_top3 = torch.topk(outputs, 3)
+            
+            predicted = predicted_top3[:,0]
+            all_labels.extend(labels.cpu().numpy())
+            all_predictions.extend(predicted.cpu().numpy())
+            for i in range(len(labels)):
+                labeli = labels[i].cpu().numpy().tolist()
+                if any(predicted_top3[i,:] == labeli):
+                    all_predictions_top3.append(labeli)
+                else:
+                    all_predictions_top3.append(predicted_top3[i,0].cpu().numpy().tolist())
+
+    val_f1_score = f1_score.compute(predictions=all_predictions, references=all_labels, average='weighted')['f1']
+    print(f"Validation F1 Score: {val_f1_score:.4f}")
+    print(f"Validation F1 Score top 3: {f1_score.compute(predictions=all_predictions_top3, references=all_labels, average='weighted')['f1']:.4f}")
+    return val_f1_score
+
+
+
 def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir="cropped-dataset/articles_test", output_csv="predictions.csv", train_dataset=train_dataset):
     # Load the trained model
     model.load_state_dict(torch.load(model_path))
@@ -149,16 +180,20 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
                 image_name_no_ext = os.path.splitext(image_name)[0][:-2]
 
                 # Append to predictions list
-                predictions.append({"image_name": image_name_no_ext, "predicted_class": predicted_class, "predicted_second_class": predicted_second_class, "predicted_third_class": predicted_third_class})
-
+            predictions.append({
+                    "image_name": image_name_no_ext, 
+                    "predicted_class": predicted_class[:-6], 
+                    "predicted_second_class": predicted_second_class[:-6], 
+                    "predicted_third_class": predicted_third_class[:-6]
+                })
                 # Load the product list with new classes CSV
-                product_list_df = pd.read_csv("process_new_classes/classes/n796/product_list_with_new_classe(n=796).csv")
+                product_list_df = pd.read_csv("product_color_list.csv")
 
                 # Merge predictions with labeled test articles to get the real article_id
                 predictions_df = pd.DataFrame(predictions)
                 
                 # Merge with product list to get real_class and group_class
-                predictions_df = predictions_df.merge(product_list_df, left_on="image_name", right_on="article_id", how="left")
+                predictions_df = predictions_df.merge(product_list_df, left_on="image_name", right_on="MMC", how="left")
 
                 # Save the final predictions to CSV
                 predictions_df.to_csv(output_csv, index=False)
@@ -168,12 +203,12 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
     correct_predictions_third = 0
     # Print the first five values of predicted_class, classe and the assertion that they are equal
     for _, row in predictions_df.iterrows():
-        print(f"Predicted: {row['predicted_class']}, Actual: {row['classe']}, Equal: {row['predicted_class'] == str(row['classe'])}")
-        if row['predicted_class'] == str(row['classe']):
+        print(f"Predicted: {row['predicted_class']}, Actual: {row['color_class']}, Equal: {row['predicted_class'] == str(row['color_class'])}")
+        if row['predicted_class'] == str(row['color_class']):
             correct_predictions += 1
-        if row['predicted_second_class'] == str(row['classe']):
+        if row['predicted_second_class'] == str(row['color_class']):
             correct_predictions_second += 1
-        if row['predicted_third_class'] == str(row['classe']):
+        if row['predicted_third_class'] == str(row['color_class']):
             correct_predictions_third += 1
     print('correct_predictions:', correct_predictions)
     print('correct_predictions_second:', correct_predictions_second)
@@ -187,5 +222,9 @@ def predict_and_save_to_csv(model_path="resnet50_finetuned.pth", test_images_dir
     print(f"Percentage of top 3 predictions: {accuracy_percentage:.2f}%")
                 
 
-# Call the function to predict and save to CSV
-train_and_save(output_path="resnet50_color_eval.pth")
+model.load_state_dict(torch.load("resnet50_color_eval.pth"))
+model.to(device)
+
+val_f1_score = evaluate_model(model, val_loader, device)
+
+predict_and_save_to_csv("resnet50_color_eval.pth", "cropped-dataset/articles_test", "predictions_color.csv", train_dataset)
