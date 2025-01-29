@@ -73,12 +73,10 @@ class RandomErasingWithRandomValue:
 
 data_augmentation_pipe = transforms.Compose(
     [
-        transforms.ToPILImage(),  # Convertir NumPy en PIL.Image
-        RandomRotation(degrees=90, fill=256),
+        RandomRotation(degrees=60, fill=256),
         RandomHorizontalFlip(p=0.5),
         RandomAffine(degrees=0, translate=(0.2, 0.2), fill=256),
-        RandomPerspective(p=0.5, distortion_scale=0.4, fill=256),
-        ColorJitter(brightness=0.2, contrast=0.1, saturation=0.1, hue=0.1),
+        RandomPerspective(p=0.5, distortion_scale=0.3, fill=256),
         RandomResizedCrop(size=(256, 256), scale=(0.75, 1.5)),
         transforms.ToTensor(),
         GaussianBlur(kernel_size=(5, 5), sigma=(0.1, 0.5)),
@@ -87,12 +85,12 @@ data_augmentation_pipe = transforms.Compose(
 )
 
 
-def process_and_augment(image_pil, image_np_rgb, num_augments=20):
-    augmented_images = [image_pil]
-
-    # Appliquer l'augmentation plusieurs fois
+def process_and_augment(image_path, num_augments=20):
+    cropped_image  = segment_pipe(image_path).convert("RGB")
+    
+    augmented_images = []
     for _ in range(num_augments):
-        augmented_tensor = data_augmentation_pipe(image_np_rgb)
+        augmented_tensor = data_augmentation_pipe(cropped_image)
         augmented_image = transforms.ToPILImage()(augmented_tensor)
         augmented_images.append(augmented_image)
 

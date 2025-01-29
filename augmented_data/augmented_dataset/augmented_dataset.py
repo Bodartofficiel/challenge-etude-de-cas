@@ -44,7 +44,7 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
         )
 
     def _split_generators(self, dl_manager):
-        data_dir = pathlib.Path(__name__).parent.parent / "cropped-dataset"
+        data_dir = pathlib.Path(__name__).parent.parent / "data/cropped-dataset"
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
@@ -58,19 +58,17 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
 
     def _generate_examples(self, filepath: pathlib.Path, split):
         if split == "train":
-            augment_func = lambda x, y: process_and_augment(x, y, self.num_augments)
+            augment_func = lambda x: process_and_augment(x, self.num_augments)
         elif split == "test":
-            augment_func = lambda x, y: [x]
+            augment_func = lambda x: [x]
         else:
             raise ValueError(f"Unknown name for split: {split}")
         i = 0
         for label, label_idx in self.labels.items():
             for image_file in (filepath / label).glob("*"):
                 print("image file ", image_file)
-                image_pil = PIL.Image.open(image_file)
-                image_np_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_BGR2RGB)
 
-                for image in augment_func(image_pil, image_np_rgb):
+                for image in augment_func(image_file):
                     yield i, {
                         "image": image,
                         "label": label_idx,
