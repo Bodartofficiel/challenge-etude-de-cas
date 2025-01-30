@@ -17,16 +17,19 @@ torch.manual_seed(seed)
 
 
 class CustomDataset(datasets.GeneratorBasedBuilder):
-    def __init__(self, *args, num_augments, **kwargs):
+    def __init__(self, *args, num_augments, labels=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.num_augments = num_augments
-        self.labels = {
-            "W Accessories": 0,
-            "W Bags": 1,
-            "W SLG": 2,
-            "W Shoes": 3,
-            "Watches": 4,
-        }
+        if labels is None:
+            self.labels = {
+                "W Accessories": 0,
+                "W Bags": 1,
+                "W SLG": 2,
+                "W Shoes": 3,
+                "Watches": 4,
+            }
+        else:
+            self.labels = labels
 
     def _info(self):
         return datasets.DatasetInfo(
@@ -35,7 +38,7 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
                 {
                     "image": datasets.Image(),
                     "label": datasets.Value("int32"),
-                    "path": datasets.Value("string")
+                    "path": datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -44,7 +47,7 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
         )
 
     def _split_generators(self, dl_manager):
-        data_dir = pathlib.Path(__name__).parent.parent / "data/cropped-dataset"
+        data_dir = pathlib.Path(__name__).parent.parent / "data" / "cropped-dataset"
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
@@ -66,12 +69,13 @@ class CustomDataset(datasets.GeneratorBasedBuilder):
         i = 0
         for label, label_idx in self.labels.items():
             for image_file in (filepath / label).glob("*"):
-                print("image file ", image_file)
+                image_pil = PIL.Image.open(image_file)
+                image_np_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_BGR2RGB)
 
                 for image in augment_func(image_file):
                     yield i, {
                         "image": image,
                         "label": label_idx,
-                        "path": str(image_file)
+                        "path": str(image_file),
                     }
                     i += 1
