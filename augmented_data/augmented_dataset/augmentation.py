@@ -1,5 +1,5 @@
 import random
-
+import PIL.Image
 import cv2
 import numpy as np
 import PIL
@@ -86,7 +86,7 @@ data_augmentation_pipe = transforms.Compose(
 
 
 def process_and_augment(image_path, num_augments=20):
-    cropped_image  = segment_pipe(image_path).convert("RGB")
+    cropped_image  = segment_pipe(PIL.Image.open(image_path)).convert("RGB")
     
     augmented_images = []
     for _ in range(num_augments):
