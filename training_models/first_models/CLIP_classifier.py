@@ -16,7 +16,7 @@ from transformers import CLIPProcessor, CLIPModel
 import matplotlib.pyplot as plt
 
 # Charge le dataset
-dataset_path = "augmented_dataset"
+dataset_path = "augmented_data/augmented_dataset"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataset = load_dataset(str(dataset_path), trust_remote_code=True, num_augments = 0)
 
